@@ -1,4 +1,4 @@
-### Experimental multi-project setup for Magarena.
+### Experimental maven multi-project setup for Magarena.
 
 Please note, the JavaFX projects, ``magarena-fx`` and ``magarena-fxml`` require version 8 of Java.
 
