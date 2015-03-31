@@ -1,5 +1,10 @@
 package magic.model;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
 import magic.model.action.MagicLoseGameAction;
 import magic.model.choice.MagicBuilderManaCost;
 import magic.model.event.MagicActivationPriority;
@@ -8,15 +13,10 @@ import magic.model.event.MagicSourceManaActivation;
 import magic.model.mstatic.MagicLayer;
 import magic.model.mstatic.MagicPermanentStatic;
 import magic.model.mstatic.MagicStatic;
+import magic.model.player.AiPlayer;
 import magic.model.target.MagicTarget;
-import magic.model.target.MagicTargetType;
 import magic.model.target.MagicTargetFilter;
-
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Set;
-import java.util.TreeSet;
+import magic.model.target.MagicTargetType;
 
 public class MagicPlayer extends MagicObjectImpl implements MagicTarget, MagicMappable<MagicPlayer> {
 
@@ -371,7 +371,7 @@ public class MagicPlayer extends MagicObjectImpl implements MagicTarget, MagicMa
         }
         
         // shuffle library
-        library.shuffle(MagicRandom.nextRNGInt(999999));
+        library.shuffle(MagicRandom.nextRNGInt());
         library.setAIKnown(true);
         
         // put cards into hand
@@ -389,16 +389,7 @@ public class MagicPlayer extends MagicObjectImpl implements MagicTarget, MagicMa
             library.add(new MagicCard(cardDefinition,this,id));
         }
 
-        //library order depends on player index, game no, random seed
-        final long seed = magic.model.MurmurHash3.hash(new long[] {
-            2 * index - 1,
-            MagicGame.getCount(),
-            (System.getProperty("rndSeed") != null) ?
-                Long.parseLong(System.getProperty("rndSeed")) :
-                System.currentTimeMillis()
-        });
-
-        library.initialShuffle(seed);
+        library.initialShuffle(MagicRandom.nextRNGInt());
 
         for (int count = handSize; count > 0 && !library.isEmpty(); count--) {
             addCardToHand(library.removeCardAtTop());
@@ -810,5 +801,9 @@ public class MagicPlayer extends MagicObjectImpl implements MagicTarget, MagicMa
 
     public boolean isHuman() {
         return !getPlayerDefinition().isArtificial();
+    }
+
+    public boolean isAiPlayerProfile() {
+        return getPlayerDefinition().getPlayerProfile() instanceof AiPlayer;
     }
 }

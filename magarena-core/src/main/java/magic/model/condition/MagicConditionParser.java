@@ -122,6 +122,11 @@ public enum MagicConditionParser {
             return MagicCondition.IS_ENCHANTED;
         }
     },
+    IsEnchantment("(SN is|it's) an enchantment") {
+        public MagicCondition toCondition(final Matcher arg) {
+            return MagicCondition.IS_ENCHANTMENT;
+        }
+    },
     IsUntapped("(SN is|it's) untapped") {
         public MagicCondition toCondition(final Matcher arg) {
             return MagicCondition.UNTAPPED_CONDITION;
@@ -378,7 +383,12 @@ public enum MagicConditionParser {
         public MagicCondition toCondition(final Matcher arg) {
             return MagicCondition.CREATURE_IN_A_GRAVEYARD;
         }
-    }
+    },
+    Formidable("creatures you control have total power 8 or greater") {
+        public MagicCondition toCondition(final Matcher arg) {
+            return MagicCondition.FORMIDABLE;
+        }
+    },
     ;
 
     private final Pattern pattern;

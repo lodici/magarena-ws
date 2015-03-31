@@ -12,6 +12,7 @@ import magic.model.condition.MagicConditionFactory;
 import magic.model.condition.MagicConditionParser;
 import magic.model.trigger.MagicThiefTrigger.Player;
 import magic.model.trigger.MagicThiefTrigger.Type;
+import magic.exception.ScriptParseException;
 
 import java.util.EnumSet;
 import java.util.List;
@@ -26,13 +27,14 @@ public enum MagicAbility {
     CannotAttack("(SN )?can't attack(\\.)?",-50),
     CannotAttackOrBlock("(SN )?can't attack or block(\\.)?",-200),
     CannotBlockWithoutFlying("(SN )?can block only creatures with flying\\.",-40),
-    CanBlockShadow("(SN )?can block creatures with shadow as though (they didn't have shadow|SN had shadow)\\.",10),
     CannotBeCountered("(SN )?can't be countered( by spells or abilities)?\\.",0),
-    Hexproof("hexproof(\\.)?",80),
     CannotBeTheTarget0("can't be the target of spells or abilities your opponents control",80),
     CannotBeTheTarget1("can't be the target of spells or abilities your opponents control",80),
     CannotBeTheTargetOfNonGreen("(SN )?can't be the target of nongreen spells or abilities from nongreen sources\\.",10),
     CannotBeTheTargetOfBlackOrRedOpponentSpell("(SN )?can't be the target of black or red spells your opponents control\\.",10),
+    CanBlockShadow("(SN )?can block creatures with shadow as though (they didn't have shadow|SN had shadow)\\.",10),
+    CanAttackWithDefender("can attack as though (it|they) didn't have defender", 10),
+    Hexproof("hexproof(\\.)?",80),
     Deathtouch("deathtouch(\\.)?",60),
     Defender("defender(\\.)?",-100),
     DoesNotUntap("(SN )?(doesn't|don't) untap during (your|its controller's|their controllers') untap step(s)?(\\.)?",-30),
@@ -154,7 +156,7 @@ public enum MagicAbility {
         protected void addAbilityImpl(final MagicAbilityStore card, final Matcher arg) {
             final int n = ARG.number(arg);
             card.add(new MagicComesIntoPlayWithCounterTrigger(MagicCounterType.Fade,n));
-            card.add(new MagicFadeVanishCounterTrigger(MagicCounterType.Fade));
+            card.add(MagicFadeVanishCounterTrigger.Fade);
         }
     },
     Vanishing("vanishing " + ARG.NUMBER,-20) {
@@ -163,7 +165,7 @@ public enum MagicAbility {
             if (n > 0) {
                 card.add(new MagicComesIntoPlayWithCounterTrigger(MagicCounterType.Time,n));
             }
-            card.add(new MagicFadeVanishCounterTrigger(MagicCounterType.Time));
+            card.add(MagicFadeVanishCounterTrigger.Time);
         }
     },
     CumulativeUpkeep("cumulative upkeep " + ARG.MANACOST,-30) {
@@ -211,9 +213,10 @@ public enum MagicAbility {
             ));
         }
     },
-    AttacksAnyEffect("Whenever a creature attacks, " + ARG.EFFECT, 10) {
+    AttacksAnyEffect("When(ever)? (a|an) " + ARG.WORDRUN + " attacks, " + ARG.EFFECT, 10) {
         protected void addAbilityImpl(final MagicAbilityStore card, final Matcher arg) {
             card.add(MagicWhenAttacksTrigger.create(
+                MagicTargetFilterFactory.singlePermanent(ARG.wordrun(arg)),
                 MagicRuleEventAction.create(ARG.effect(arg))
             ));
         }
@@ -221,6 +224,14 @@ public enum MagicAbility {
     BlocksEffect("When(ever)? SN blocks, " + ARG.EFFECT, 10) {
         protected void addAbilityImpl(final MagicAbilityStore card, final Matcher arg) {
             card.add(MagicWhenSelfBlocksTrigger.create(
+                MagicRuleEventAction.create(ARG.effect(arg))
+            ));
+        }
+    },
+    BlocksCreatureEffect("When(ever)? SN blocks (a|an) " + ARG.WORDRUN + ", " + ARG.EFFECT, 10) {
+        protected void addAbilityImpl(final MagicAbilityStore card, final Matcher arg) {
+            card.add(MagicWhenSelfBlocksTrigger.create(
+                MagicTargetFilterFactory.singlePermanent(ARG.wordrun(arg)),
                 MagicRuleEventAction.create(ARG.effect(arg))
             ));
         }
@@ -533,7 +544,11 @@ public enum MagicAbility {
     Buyback("buyback " + ARG.COST, 0) {
         protected void addAbilityImpl(final MagicAbilityStore card, final Matcher arg) {
             card.add(MagicKickerCost.Buyback(new MagicRegularCostEvent(ARG.cost(arg))));
-            card.add(MagicWhenSpellIsCastTrigger.Buyback);
+        }
+    },
+    Entwine("entwine " + ARG.COST, 0) {
+        protected void addAbilityImpl(final MagicAbilityStore card, final Matcher arg) {
+            card.add(MagicKickerCost.Entwine(new MagicRegularCostEvent(ARG.cost(arg))));
         }
     },
     Multikicker("multikicker " + ARG.MANACOST, 0) {
@@ -692,7 +707,7 @@ public enum MagicAbility {
             final int power = Integer.parseInt(pt[0]);
             final int toughness = Integer.parseInt(pt[1]);
             card.add(MagicStatic.genPTStatic(power, toughness));
-            card.add(MagicStatic.genABStatic(
+            card.add(MagicStatic.linkedABStatic(
                 MagicAbility.getAbilityList(
                     ARG.any(arg)
                 )
@@ -707,9 +722,19 @@ public enum MagicAbility {
             card.add(MagicStatic.genPTStatic(power, toughness));
         }
     },
+    AttachedCreatureGainConditional("(Equipped|Enchanted) (creature|artifact|land|permanent) " + ARG.ANY + " as long as " + ARG.WORDRUN + "(\\.)?", 0) {
+        protected void addAbilityImpl(final MagicAbilityStore card, final Matcher arg) {
+            card.add(MagicStatic.linkedABStatic(
+                MagicConditionParser.build(ARG.wordrun(arg)),
+                MagicAbility.getAbilityList(
+                    ARG.any(arg)
+                )
+            ));
+        }
+    },
     AttachedCreatureGain("(Equipped|Enchanted) (creature|artifact|land|permanent) " + ARG.ANY + "(\\.)?", 0) {
         protected void addAbilityImpl(final MagicAbilityStore card, final Matcher arg) {
-            card.add(MagicStatic.genABStatic(
+            card.add(MagicStatic.linkedABStatic(
                 MagicAbility.getAbilityList(
                     ARG.any(arg)
                 )
@@ -726,7 +751,7 @@ public enum MagicAbility {
     },
     PairedGain("As long as SN is paired with another creature, (both creatures have|each of those creatures has) " + ARG.ANY + "(\\.)?", 0) {
         protected void addAbilityImpl(final MagicAbilityStore card, final Matcher arg) {
-            card.add(MagicStatic.genABStatic(
+            card.add(MagicStatic.linkedABStatic(
                 MagicAbility.getAbilityList(
                     ARG.any(arg)
                 )
@@ -1017,6 +1042,13 @@ public enum MagicAbility {
             ));
         }
     },
+    CantBlockPermanent("(SN )?can't block " + ARG.WORDRUN + "(\\.)?", 10) {
+        protected void addAbilityImpl(final MagicAbilityStore card, final Matcher arg) {
+            card.add(MagicCantBlockTrigger.create(
+                MagicTargetFilterFactory.multiple(ARG.wordrun(arg))
+            ));
+        }
+    },
     LordPumpGain("(?<other>other )?" + ARG.WORDRUN + " get(s)? " + ARG.PT + " and (have|has) " + ARG.ANY + "(\\.)?", 0) {
         protected void addAbilityImpl(final MagicAbilityStore card, final Matcher arg) {
             final String[] pt = ARG.pt(arg).replace("+","").split("/");
@@ -1057,11 +1089,11 @@ public enum MagicAbility {
             }
         }
     },
-    LordGainCant("(?<other>other )?" + ARG.WORDRUN + " can't " + ARG.ANY + "(\\.)?", 0) {
+    LordGainCan("(?<other>other )?" + ARG.WORDRUN + " (?<any>can('t)? .+)(\\.)?", 0) {
         protected void addAbilityImpl(final MagicAbilityStore card, final Matcher arg) {
             final boolean other = arg.group("other") != null;
             final MagicTargetFilter<MagicPermanent> filter = MagicTargetFilterFactory.multiple(ARG.wordrun(arg));
-            final MagicAbilityList abilityList = MagicAbility.getAbilityList("can't " + ARG.any(arg));
+            final MagicAbilityList abilityList = MagicAbility.getAbilityList(ARG.any(arg));
             if (other) {
                 card.add(MagicStatic.genABGameStaticOther(
                     filter,
@@ -1118,7 +1150,7 @@ public enum MagicAbility {
         protected void addAbilityImpl(final MagicAbilityStore card, final Matcher arg) {
             final List<MagicMatchedCostEvent> matchedCostEvents = MagicRegularCostEvent.build(ARG.cost(arg));
             card.add(new MagicMorphActivation(matchedCostEvents));
-            card.add(MagicMorphCastActivation.create());
+            card.add(MagicMorphCastActivation.Morph);
         }
     },
     TurnedFaceUpEffect("When SN is turned face up, " + ARG.EFFECT,10) {
@@ -1178,6 +1210,38 @@ public enum MagicAbility {
     Prowess("prowess",10) {
         protected void addAbilityImpl(final MagicAbilityStore card, final Matcher arg) {
             card.add(MagicProwessTrigger.create());
+        }
+    },
+    Exploit("exploit", 10) {
+        protected void addAbilityImpl(final MagicAbilityStore card, final Matcher arg) {
+            card.add(MagicWhenComesIntoPlayTrigger.Exploit);
+        }
+    },
+    WhenExploit("When SN exploits a creature, " + ARG.EFFECT, 0) {
+        protected void addAbilityImpl(final MagicAbilityStore card, final Matcher arg) {
+            card.add(MagicWhenBecomesStateTrigger.createSelf(
+                MagicPermanentState.Exploit,
+                MagicRuleEventAction.create(ARG.effect(arg))
+            ));
+        }
+    },
+    Megamorph("megamorph " + ARG.COST, 10) {
+        protected void addAbilityImpl(final MagicAbilityStore card, final Matcher arg) {
+            final List<MagicMatchedCostEvent> matchedCostEvents = MagicRegularCostEvent.build(ARG.cost(arg));
+            card.add(new MagicMegamorphActivation(matchedCostEvents));
+            card.add(MagicMorphCastActivation.Megamorph);
+        }
+    },
+    Affinity("affinity for " + ARG.WORDRUN + "(\\.)?", 10) {
+        protected void addAbilityImpl(final MagicAbilityStore card, final Matcher arg) {
+            final MagicCardDefinition cardDef = (MagicCardDefinition)card;
+            card.add(MagicCardActivation.affinity(cardDef, MagicTargetFilterFactory.multiple(ARG.wordrun(arg))));
+        }
+    },
+    Kinship("kinship " + ARG.EFFECT, 0) {
+        protected void addAbilityImpl(final MagicAbilityStore card, final Matcher arg) {
+            final String effect = ARG.effect(arg);
+            card.add(MagicAtYourUpkeepTrigger.kinship(effect, MagicRuleEventAction.create(effect).getAction()));
         }
     },
     ;
@@ -1250,7 +1314,7 @@ public enum MagicAbility {
                 return ability;
             }
         }
-        throw new RuntimeException("unknown ability \"" + name + "\"");
+        throw new ScriptParseException("unknown ability \"" + name + "\"");
     }
     
     public static MagicAbilityList getAbilityList(final String[] names) {

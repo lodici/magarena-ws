@@ -5,6 +5,8 @@ import magic.data.TextImages;
 import magic.model.choice.MagicBuilderManaCost;
 import magic.model.condition.MagicCondition;
 import magic.model.condition.MagicManaCostCondition;
+
+import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -19,8 +21,8 @@ public class MagicManaCost {
 
     private static final Pattern PATTERN=Pattern.compile("\\{[A-Z\\d/]+\\}");
 
-    private static final int[] SINGLE_PENALTY={0,1,1,3,6,9,12};
-    private static final int[] DOUBLE_PENALTY={0,0,1,2,4,6,8};
+    private static final int[] SINGLE_PENALTY={0,1,1,3,6,9,12,15,18};
+    private static final int[] DOUBLE_PENALTY={0,0,1,2,4,6, 8,10,12};
 
     private static final MagicIcon[] COLORLESS_ICONS={
         MagicIcon.MANA_0,
@@ -45,17 +47,15 @@ public class MagicManaCost {
     public static final MagicManaCost ZERO=MagicManaCost.create("{0}");
 
     private final String costText;
-    private final int[] amounts;
+    private final int[] amounts = new int[MagicCostManaType.NR_OF_TYPES];
     private final int converted;
     private final int XCount;
-    private final List<MagicCostManaType> order;
+    private final List<MagicCostManaType> order = new ArrayList<>();
     private MagicBuilderManaCost builderCost;
     private List<MagicIcon> icons;
 
     private MagicManaCost(final String aCostText) {
         costText = aCostText;
-        amounts = new int[MagicCostManaType.NR_OF_TYPES];
-        order = new ArrayList<>();
 
         final int[] XCountArr = {0};
         final int[] convertedArr = {0};
@@ -124,6 +124,7 @@ public class MagicManaCost {
     public int getXCount() {
         return XCount;
     }
+
     public boolean hasX() {
         return XCount > 0;
     }
@@ -162,14 +163,14 @@ public class MagicManaCost {
         return colorFlags;
     }
 
-    private String getCanonicalText() {
+    private static String getCanonicalText(final int[] amounts, final int XCount) {
         final StringBuilder sb = new StringBuilder();
         //add X
         for (int i = 0; i < XCount; i++) {
             sb.append('{').append('X').append('}');
         }
         //add others
-        for (final MagicCostManaType type : getCanonicalOrder()) {
+        for (final MagicCostManaType type : getCanonicalOrder(amounts)) {
             final int amt = amounts[type.ordinal()];
             if (type == MagicCostManaType.Colorless && amt > 0) {
                 sb.append('{').append(amt).append('}');
@@ -186,7 +187,7 @@ public class MagicManaCost {
         }
     }
 
-    private List<MagicCostManaType> getCanonicalOrder() {
+    private static List<MagicCostManaType> getCanonicalOrder(final int[] amounts) {
         final List<MagicCostManaType> manaOrder = new ArrayList<>();
         for (final MagicCostManaType type : MagicCostManaType.NON_MONO) {
             final int amt = amounts[type.ordinal()];
@@ -196,7 +197,7 @@ public class MagicManaCost {
         }
 
         //add mono
-        MagicCostManaType curr = findFirstMonoSymbol();
+        MagicCostManaType curr = findFirstMonoSymbol(amounts);
         for (int i = 0; i < 5; i++, curr = curr.next()) {
             final int amt = amounts[curr.ordinal()];
             if (amt > 0) {
@@ -208,7 +209,7 @@ public class MagicManaCost {
     }
 
     //find the first mono color in the mana cost order
-    private MagicCostManaType findFirstMonoSymbol() {
+    private static MagicCostManaType findFirstMonoSymbol(final int[] amounts) {
         //keep color with amount > 0 and has no prev
         final List<MagicCostManaType> cand = new ArrayList<>();
         for (final MagicCostManaType color : MagicCostManaType.MONO) {
@@ -337,5 +338,12 @@ public class MagicManaCost {
             COSTS_MAP.put(costText,cost);
         }
         return cost;
+    }
+
+    public MagicManaCost reduce(final MagicCostManaType type, final int amt) {
+        final int[] reducedAmounts = Arrays.copyOf(amounts, amounts.length);
+        final int idx = type.ordinal();
+        reducedAmounts[idx] -= Math.min(amounts[idx], amt);
+        return MagicManaCost.create(getCanonicalText(reducedAmounts, 0));
     }
 }
