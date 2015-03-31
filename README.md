@@ -11,9 +11,8 @@ First create a Project Group...
 
 1. File -> Project Groups.
 2. Click _New Group_ to open group dialog.  
-3. Enter ``magarena-ws`` for the _Name_ field.  
-4. Enable _Folder of Projects_ and browse to the folder in which the clone was created.  
-5. Click _Create group_ and select to open all projects.
+3. Enable _Folder of Projects_ and browse to the folder in which the clone was created.  
+4. Click _Create group_ and select to open all projects.
 
 Update each of the following projects to use the java 8 compiler -
 
