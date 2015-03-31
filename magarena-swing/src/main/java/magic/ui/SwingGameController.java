@@ -1,30 +1,6 @@
 package magic.ui;
 
-import magic.exception.UndoClickedException;
-import magic.ui.duel.DuelPanel;
-import magic.utility.MagicSystem;
-import magic.ai.MagicAI;
-import magic.data.GeneralConfig;
-import magic.data.SoundEffects;
-import magic.model.ILogBookListener;
-import magic.model.MagicCardDefinition;
-import magic.model.MagicCardList;
-import magic.model.MagicGame;
-import magic.model.MagicLogBookEvent;
-import magic.model.MagicPlayer;
-import magic.model.MagicSource;
-import magic.model.phase.MagicPhaseType;
-import magic.model.event.MagicEvent;
-import magic.model.event.MagicEventAction;
-import magic.model.event.MagicPriorityEvent;
-import magic.model.target.MagicTarget;
-import magic.model.target.MagicTargetNone;
-import magic.ui.duel.viewer.ChoiceViewer;
-import magic.ui.duel.viewer.UserActionPanel;
-
-import javax.swing.JComponent;
-import javax.swing.SwingUtilities;
-
+import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.KeyEventDispatcher;
 import java.awt.KeyboardFocusManager;
@@ -43,20 +19,41 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import javax.swing.JComponent;
+import javax.swing.SwingUtilities;
+import magic.ai.MagicAI;
 import magic.data.DuelConfig;
+import magic.data.GeneralConfig;
 import magic.data.MagicIcon;
+import magic.data.SoundEffects;
 import magic.exception.InvalidDeckException;
+import magic.exception.UndoClickedException;
 import magic.game.state.GameState;
-import magic.game.state.GameStateSnapshot;
 import magic.game.state.GameStateFileWriter;
+import magic.game.state.GameStateSnapshot;
+import magic.model.ILogBookListener;
 import magic.model.IUIGameController;
+import magic.model.MagicCardDefinition;
+import magic.model.MagicCardList;
 import magic.model.MagicColor;
+import magic.model.MagicGame;
+import magic.model.MagicLogBookEvent;
 import magic.model.MagicManaCost;
 import magic.model.MagicObject;
+import magic.model.MagicPlayer;
+import magic.model.MagicPlayerZone;
+import magic.model.MagicSource;
 import magic.model.MagicSubType;
 import magic.model.choice.MagicPlayChoiceResult;
+import magic.model.event.MagicEvent;
+import magic.model.event.MagicEventAction;
+import magic.model.event.MagicPriorityEvent;
 import magic.model.phase.MagicMainPhase;
+import magic.model.phase.MagicPhaseType;
+import magic.model.target.MagicTarget;
+import magic.model.target.MagicTargetNone;
 import magic.ui.card.AnnotatedCardPanel;
+import magic.ui.duel.DuelPanel;
 import magic.ui.duel.choice.ColorChoicePanel;
 import magic.ui.duel.choice.ManaCostXChoicePanel;
 import magic.ui.duel.choice.MayChoicePanel;
@@ -64,8 +61,13 @@ import magic.ui.duel.choice.ModeChoicePanel;
 import magic.ui.duel.choice.MulliganChoicePanel;
 import magic.ui.duel.choice.MultiKickerChoicePanel;
 import magic.ui.duel.choice.PlayChoicePanel;
+import magic.ui.duel.viewer.ChoiceViewer;
+import magic.ui.duel.viewer.PlayerViewerInfo;
+import magic.ui.duel.viewer.PlayerZoneViewer;
+import magic.ui.duel.viewer.UserActionPanel;
 import magic.ui.duel.viewer.ViewerInfo;
 import magic.ui.screen.MulliganScreen;
+import magic.utility.MagicSystem;
 
 public class SwingGameController implements IUIGameController, ILogBookListener {
 
@@ -73,7 +75,7 @@ public class SwingGameController implements IUIGameController, ILogBookListener 
 
     private final DuelPanel gamePanel;
     private final MagicGame game;
-    private final boolean selfMode = Boolean.getBoolean("selfMode");
+    private final boolean selfMode = MagicSystem.isAiVersusAi();
     private final AtomicBoolean running = new AtomicBoolean(false);
     private final AtomicBoolean isPaused =  new AtomicBoolean(false);
     private final AtomicBoolean gameConceded = new AtomicBoolean(false);
@@ -89,6 +91,8 @@ public class SwingGameController implements IUIGameController, ILogBookListener 
     private final BlockingQueue<Boolean> input = new SynchronousQueue<>();
     private int gameTurn = 0;
     private final ViewerInfo viewerInfo;
+    private PlayerZoneViewer playerZoneViewer;
+    private final List<IPlayerZoneListener> playerZoneListeners = new ArrayList<>();
     
     private static boolean isControlKeyDown = false;
     private static final KeyEventDispatcher keyEventDispatcher = new KeyEventDispatcher() {
@@ -182,13 +186,9 @@ public class SwingGameController implements IUIGameController, ILogBookListener 
 
     @Override
     public void waitForInput() throws UndoClickedException {
-        try {
-            final boolean undoClicked = input.take();
-            if (undoClicked) {
-                throw new UndoClickedException();
-            }
-        } catch (final InterruptedException ex) {
-            throw new RuntimeException(ex);
+        final boolean undoClicked = waitForInputOrUndo();
+        if (undoClicked) {
+            throw new UndoClickedException();
         }
     }
 
@@ -197,9 +197,7 @@ public class SwingGameController implements IUIGameController, ILogBookListener 
     }
     
     public void switchKeyPressed() {
-        game.setVisiblePlayer(game.getVisiblePlayer().getOpponent());
-        getViewerInfo().update(game);
-        gamePanel.updateView();
+        playerZoneViewer.switchPlayerZone();
     }
 
     public void passKeyPressed() {
@@ -463,6 +461,7 @@ public class SwingGameController implements IUIGameController, ILogBookListener 
         validChoices=Collections.emptySet();
         combatChoice=false;
         showValidChoices();
+        showMessage(MagicEvent.NO_SOURCE, "");
     }
 
     @Override
@@ -523,11 +522,11 @@ public class SwingGameController implements IUIGameController, ILogBookListener 
     }
 
     @Override
-    public void showMessage(final MagicSource source,final String message) {
+    public void showMessage(final MagicSource source, final String message) {
         SwingUtilities.invokeLater(new Runnable() {
             @Override
             public void run() {
-                userActionPanel.showMessage(getMessageWithSource(source,message));
+                userActionPanel.showMessage(getMessageWithSource(source, message));
             }
         });
     }
@@ -557,7 +556,11 @@ public class SwingGameController implements IUIGameController, ILogBookListener 
 
     private Object[] getArtificialNextEventChoiceResults(final MagicEvent event) {
         disableActionButton(true);
-        showMessage(event.getSource(),event.getChoiceDescription());
+        if (CONFIG.getHideAiActionPrompt()) {
+            showMessage(MagicEvent.NO_SOURCE, "");
+        } else {
+            showMessage(event.getSource(),event.getChoiceDescription());
+        }
         SwingGameController.invokeAndWait(new Runnable() {
             @Override
             public void run() {
@@ -933,4 +936,39 @@ public class SwingGameController implements IUIGameController, ILogBookListener 
         return choicePanel.getResult();
     }
 
+    public PlayerZoneViewer getPlayerZoneViewer() {
+        if (playerZoneViewer == null) {
+            playerZoneViewer = new PlayerZoneViewer(this);
+        }
+        return playerZoneViewer;
+    }
+
+    public void addPlayerZoneListener(final IPlayerZoneListener listener) {
+        playerZoneListeners.add(listener);
+    }
+
+    public void notifyPlayerZoneChanged(final PlayerViewerInfo playerInfo, final MagicPlayerZone zone) {
+        for (IPlayerZoneListener listener : playerZoneListeners) {
+            listener.setActivePlayerZone(playerInfo, zone);
+        }
+    }
+
+    @Override
+    public void refreshSidebarLayout() {
+        gamePanel.refreshSidebarLayout();
+    }
+
+    @Override
+    public Rectangle getPlayerZoneButtonRectangle(MagicPlayer player, MagicPlayerZone zone, Component canvas) {
+        return gamePanel.getPlayerZoneButtonRectangle(player, zone, canvas);
+    }
+
+    @Override
+    public Rectangle getStackViewerRectangle(Component canvas) {
+        return gamePanel.getStackViewerRectangle(canvas);
+    }
+
+    public void doFlashPlayerHandZoneButton() {
+        gamePanel.doFlashPlayerHandZoneButton();
+    }
 }

@@ -62,7 +62,7 @@
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>magarena-core</artifactId>
-            <version>${project.version}</version>
+            <version>LATEST</version>
         </dependency>
     </dependencies>
 
@@ -89,5 +89,5 @@
     </build>
 	
     <properties/>
-    <version>1.5.8</version>
+    <version>1.6.0</version>
 </project>

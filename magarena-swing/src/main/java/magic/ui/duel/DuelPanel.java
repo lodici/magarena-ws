@@ -1,5 +1,6 @@
 package magic.ui.duel;
 
+import java.awt.Component;
 import magic.ui.duel.dialog.DuelDialogPanel;
 import magic.ui.duel.animation.PlayCardAnimation;
 import java.awt.Dimension;
@@ -17,6 +18,8 @@ import magic.data.GeneralConfig;
 import magic.exception.InvalidDeckException;
 import magic.model.MagicCardList;
 import magic.model.MagicGame;
+import magic.model.MagicPlayer;
+import magic.model.MagicPlayerZone;
 import magic.model.event.MagicEvent;
 import magic.ui.SwingGameController;
 import magic.ui.MagicFrame;
@@ -82,6 +85,9 @@ public final class DuelPanel extends JPanel {
         battlefieldPanel = isTextView() ? textView : imageView;
 
         sidebarPanel = new DuelSideBarPanel(controller, battlefieldPanel.getStackViewer());
+
+        // TODO: should not have to run this, but required while sidebarPanel is created after battlefieldPanel.
+        controller.notifyPlayerZoneChanged(controller.getViewerInfo().getPlayerInfo(false), MagicPlayerZone.HAND);
 
         controller.setUserActionPanel(sidebarPanel.getGameStatusPanel().getUserActionPanel());
 
@@ -226,7 +232,6 @@ public final class DuelPanel extends JPanel {
         final Dimension size = getSize();
         result = ResolutionProfiles.calculate(size);
         backgroundLabel.setZones(result);                
-        sidebarPanel.resizeComponents(result);
         battlefieldPanel.resizeComponents(result);
         setGamePanelLayout();
         // defer until all pending events on the EDT have been processed.
@@ -261,6 +266,9 @@ public final class DuelPanel extends JPanel {
         assert !SwingUtilities.isEventDispatchThread();
         final PlayCardAnimation animationEvent = battlefieldPanel.getPlayCardFromHandAnimation();
         if (animationEvent != null && CONFIG.isAnimateGameplay()) {
+            if (animationEvent.getPlayer() != controller.getGame().getVisiblePlayer()) {
+                controller.doFlashPlayerHandZoneButton();
+            }
             animator.runAnimation(animationEvent);
         }
         battlefieldPanel.setPlayCardFromHandAnimation(null);
@@ -289,7 +297,6 @@ public final class DuelPanel extends JPanel {
         SwingUtilities.invokeLater(new Runnable() {
             @Override
             public void run() {
-                sidebarPanel.setStartEndTurnState();
                 sidebarPanel.getGameStatusPanel().showNewTurnNotification(game);
             }
         });
@@ -312,11 +319,26 @@ public final class DuelPanel extends JPanel {
 
     public void showEndGameMessage() {
         dialogPanel.showEndGameMessage(controller);
-        sidebarPanel.setStartEndTurnState();
     }
 
     public JPanel getDialogPanel() {
         return dialogPanel;
+    }
+
+    public void refreshSidebarLayout() {
+        sidebarPanel.refreshLayout();
+    }
+
+    public Rectangle getPlayerZoneButtonRectangle(MagicPlayer player, MagicPlayerZone zone, Component canvas) {
+        return sidebarPanel.getPlayerZoneButtonRectangle(player, zone, canvas);
+    }
+
+    public Rectangle getStackViewerRectangle(Component canvas) {
+        return sidebarPanel.getStackViewerRectangle(canvas);
+    }
+
+    public void doFlashPlayerHandZoneButton() {
+        sidebarPanel.doFlashPlayerHandZoneButton();
     }
 
 }
