@@ -4,9 +4,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
 import javafx.scene.image.Image;
-import magic.data.FileIO;
-import magic.data.MagicFormats;
+import magic.data.MagicPredefinedFormat;
 import magic.data.MagicSets;
+import magic.utility.FileIO;
 
 public final class MagicResources {
     private MagicResources() { }
@@ -18,7 +18,7 @@ public final class MagicResources {
         return getResourceFileContent("/magic/data/sets/" + magicSet.toString().replace("_", "") + ".txt");
     }
 
-    public static String getFileContent(final MagicFormats magicFormat) {
+    public static String getFileContent(final MagicPredefinedFormat magicFormat) {
         return getResourceFileContent("/magic/data/formats/" + magicFormat.getFilename() + ".fmt");
     }
 

@@ -18,6 +18,7 @@ import magic.data.CardDefinitions;
 import magic.data.GeneralConfig;
 import magic.data.UnimplementedParser;
 import magic.exception.handler.ConsoleExceptionHandler;
+import magic.utility.DeckUtils;
 import magic.utility.MagicSystem;
 import magic.utility.ProgressReporter;
 import org.slf4j.Logger;
@@ -137,7 +138,7 @@ public class Main extends Application {
             throw new RuntimeException("Unable to create directory " + modsPathFile.toString());
         }
 
-        magic.data.DeckUtils.createDeckFolder();
+        DeckUtils.createDeckFolder();
 
         initializeEngine();
 

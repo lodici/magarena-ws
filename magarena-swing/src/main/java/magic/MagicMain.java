@@ -12,13 +12,13 @@ import javax.swing.UIManager.LookAndFeelInfo;
 
 import magic.data.DuelConfig;
 import magic.data.GeneralConfig;
-import magic.exception.InvalidDeckException;
 import magic.test.TestGameBuilder;
 import magic.ui.ScreenController;
 import magic.ui.UiExceptionHandler;
 import magic.utility.MagicSystem;
 import magic.utility.MagicFileSystem;
 import magic.utility.MagicFileSystem.DataPath;
+import magic.model.player.PlayerProfiles;
 
 public class MagicMain {
 
@@ -101,22 +101,30 @@ public class MagicMain {
     }
 
     private static void startUI() {
-        ScreenController.showMainMenuScreen();
-        // Add "-DtestGame=X" VM argument to start a TestGameBuilder game
-        // where X is one of the classes (without the .java) in "magic.test".
+
+        // -DtestGame=X, where X is one of the classes (without the .java) in "magic.test".
         final String testGame = System.getProperty("testGame");
         if (testGame != null) {
             ScreenController.showDuelGameScreen(TestGameBuilder.buildGame(testGame));
+            return;
         }
+
+        // -DselfMode=true
         if (MagicSystem.isAiVersusAi()) {
             final DuelConfig config = DuelConfig.getInstance();
             config.load();
-            try {
-                ScreenController.getMainFrame().newDuel(config);
-            } catch (InvalidDeckException ex) {
-                ScreenController.showWarningMessage(ex.getMessage());
-            }
+            
+            // set both player profile to AI for AI vs AI mode
+            config.setPlayerProfile(0, PlayerProfiles.getDefaultAiPlayer());
+            config.setPlayerProfile(1, PlayerProfiles.getDefaultAiPlayer());
+
+            ScreenController.getMainFrame().newDuel(config);
+            return;
         }
+
+        // normal UI startup.
+        ScreenController.showStartScreen();
+        
     }
 
     private static void parseCommandline(final String[] args) {

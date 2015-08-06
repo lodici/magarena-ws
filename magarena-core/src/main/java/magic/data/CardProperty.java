@@ -79,6 +79,11 @@ public enum CardProperty {
             card.setAbilityProperty(value);
         }
     },
+    LOYALTY() {
+        public void setProperty(final MagicCardDefinition card, final String value) {
+            card.setStartingLoyalty(Integer.parseInt(value));
+        }
+    },
     LOAD_ABILITY_COMMA() {
         public void setProperty(final MagicCardDefinition card, final String value) {
             final String[] names=value.split(COMMA);
@@ -173,9 +178,9 @@ public enum CardProperty {
     NAME() {
         public void setProperty(final MagicCardDefinition card, final String value) {
             assert card.getName() == null;
-            assert card.getFullName() == null;
+            assert card.getDistinctName() == null;
             card.setName(value);
-            card.setFullName(value);
+            card.setDistinctName(value);
         }
     },
     EFFECT() {
@@ -195,7 +200,7 @@ public enum CardProperty {
     },
     LOAD_GROOVY_CODE() {
         public void setProperty(final MagicCardDefinition card, final String value) {
-            final String cardName = !value.isEmpty() ? value : card.getFullName();
+            final String cardName = !value.isEmpty() ? value : card.getDistinctName();
             final String[] names = cardName.split(SEMI);
             for (final String name : names) {
                 CardDefinitions.addCardSpecificGroovyCode(card, name);

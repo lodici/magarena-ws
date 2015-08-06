@@ -5,27 +5,32 @@ import java.awt.Dimension;
 import java.awt.event.ActionEvent;
 import java.util.Enumeration;
 import javax.swing.AbstractAction;
-import javax.swing.BorderFactory;
 import javax.swing.DefaultListModel;
 import javax.swing.JButton;
-import javax.swing.JComponent;
 import javax.swing.JList;
 import javax.swing.JPanel;
 import javax.swing.ListSelectionModel;
 import magic.data.GeneralConfig;
 import magic.model.IUIGameController;
 import magic.ui.MagicFrame;
+import magic.translate.UiString;
 import magic.ui.theme.Theme;
-import magic.ui.MagicStyle;
+import magic.ui.utility.MagicStyle;
+import magic.ui.dialog.button.CancelButton;
+import magic.ui.dialog.button.SaveButton;
 import net.miginfocom.swing.MigLayout;
 
 @SuppressWarnings("serial")
 public class DuelSidebarLayoutDialog extends MagicDialog {
 
+    // translatable strings
+    private static final String _S1 = "Sidebar Layout";
+    private static final String _S4 = "Move Up";
+    private static final String _S5 = "Move Down";
+
     private static final Color HIGHLIGHT_BACK = MagicStyle.getTheme().getColor(Theme.COLOR_TITLE_BACKGROUND);
     private static final Color HIGHLIGHT_FORE = MagicStyle.getTheme().getColor(Theme.COLOR_TITLE_FOREGROUND);
     
-    private final MigLayout migLayout = new MigLayout();
     private boolean isCancelled = false;
     private final JList<String> jlist = new JList<>();
     private DefaultListModel<String> listModel;
@@ -34,27 +39,16 @@ public class DuelSidebarLayoutDialog extends MagicDialog {
 
     // CTR
     public DuelSidebarLayoutDialog(final MagicFrame frame, final IUIGameController controller) {
-        super(frame, "Sidebar Layout", new Dimension(280, 260));
+        super(frame, UiString.get(_S1), new Dimension(280, 260));
         this.controller = controller;
         currentLayout = GeneralConfig.getInstance().getDuelSidebarLayout();
         setLookAndFeel();
         refreshLayout();
         refreshContent();
+        setVisible(true);
     }
 
-    @Override
-    protected void setLookAndFeel() {
-        super.setLookAndFeel();
-
-        migLayout.setLayoutConstraints("flowy, insets 0");
-        final JComponent content = (JComponent)getContentPane();
-        content.setLayout(migLayout);
-
-        content.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(Color.DARK_GRAY),
-                BorderFactory.createMatteBorder(0, 8, 8, 8, MagicStyle.getTheme().getColor(Theme.COLOR_TITLE_BACKGROUND)))
-        );
-        
+    private void setLookAndFeel() {
         jlist.setOpaque(true);
         jlist.setBackground(Color.WHITE);
         jlist.setForeground(Color.BLACK);
@@ -74,20 +68,13 @@ public class DuelSidebarLayoutDialog extends MagicDialog {
     }
 
     private void refreshLayout() {
-        final JComponent content = (JComponent)getContentPane();
-        content.removeAll();
-        content.add(getDialogCaptionLabel(), "w 100%, h 26!");
-        content.add(getContentPanel(), "w 100%, h 100%");
+        final JPanel panel = getDialogContentPanel();
+        panel.setLayout(new MigLayout("flowy, gap 0"));
+        panel.add(getListButtonPanel(), "w 100%, h 30!");
+        panel.add(jlist, "w 100%, h 100%, aligny top, gapbottom 6");
+        panel.add(getDialogButtonPanel(), "w 100%, h 30!, pushy, aligny bottom");
     }
     
-    private JPanel getContentPanel() {
-        final JPanel panel = new JPanel(new MigLayout("flowy, gap 0"));
-        panel.add(getListButtonPanel(), "w 100%, h 30!");
-        panel.add(jlist, "w 100%, h 100%, aligny top");
-        panel.add(getDialogButtonPanel(), "w 100%, h 40!, pushy, aligny bottom, spanx");
-        return panel;
-    }
-
     private JPanel getListButtonPanel() {
         final JPanel buttonPanel = new JPanel(new MigLayout("insets 0, gap 0"));
         buttonPanel.add(getMoveDownButton(), "w 50%");
@@ -96,20 +83,20 @@ public class DuelSidebarLayoutDialog extends MagicDialog {
     }
 
     private JPanel getDialogButtonPanel() {
-        final JPanel buttonPanel = new JPanel(new MigLayout(""));
-        buttonPanel.add(getCancelButton(), "w 100!, alignx right, pushx");
-        buttonPanel.add(getSaveButton(), "w 100!, alignx right");
+        final JPanel buttonPanel = new JPanel(new MigLayout("insets 0, alignx right"));
+        buttonPanel.add(getCancelButton());
+        buttonPanel.add(getSaveButton());
         return buttonPanel;
     }
 
     private JButton getSaveButton() {
-        final JButton btn = new JButton("Save");
+        final JButton btn = new SaveButton();
         btn.addActionListener(getSaveAction());
         return btn;
     }
 
     private JButton getCancelButton() {
-        final JButton btn = new JButton("Cancel");
+        final JButton btn = new CancelButton();
         btn.addActionListener(getCancelAction());
         return btn;
     }
@@ -130,7 +117,7 @@ public class DuelSidebarLayoutDialog extends MagicDialog {
     }
 
     private JButton getMoveUpButton() {
-        final JButton btn = new JButton("Move Up");
+        final JButton btn = new JButton(UiString.get(_S4));
         btn.addActionListener(new AbstractAction() {
             @Override
             public void actionPerformed(ActionEvent e) {
@@ -147,7 +134,7 @@ public class DuelSidebarLayoutDialog extends MagicDialog {
     }
 
     private JButton getMoveDownButton() {
-        final JButton btn = new JButton("Move Down");
+        final JButton btn = new JButton(UiString.get(_S5));
         btn.addActionListener(new AbstractAction() {
             @Override
             public void actionPerformed(ActionEvent e) {

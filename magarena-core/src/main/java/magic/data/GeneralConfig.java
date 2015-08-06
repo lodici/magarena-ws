@@ -1,5 +1,7 @@
 package magic.data;
 
+import magic.utility.FileIO;
+import java.awt.Color;
 import java.io.File;
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -15,7 +17,7 @@ import magic.utility.MagicSystem;
 
 public class GeneralConfig {
 
-    public static final String VERSION = "1.61";
+    public static final String VERSION = "1.65";
     public static final String SOFTWARE_TITLE =
             "Magarena " + GeneralConfig.VERSION + (MagicSystem.isDevMode() ? " [DEV MODE]" : "");
 
@@ -68,6 +70,9 @@ public class GeneralConfig {
     private static final String DOWNLOADER_RUN_DATE = "imageDownloaderRunDate";
     private static final String DUEL_SIDEBAR_LAYOUT ="duelSidebarLayout";
     private static final String HIDE_AI_ACTION_PROMPT ="hideAiActionPrompt";
+    private static final String ROLLOVER_COLOR ="rolloverColor";
+    private static final String UI_SOUND_VOLUME = "uiSoundVolume";
+    private static final String TRANSLATION = "translation";
 
     private static final int DEFAULT_LEFT=-1;
     private static final int DEFAULT_TOP=0;
@@ -80,7 +85,7 @@ public class GeneralConfig {
     private static final boolean DEFAULT_TEXT_VIEW = false;
     private static final boolean DEFAULT_SINGLE=true;
     private static final boolean DEFAULT_PASS=true;
-    private static final boolean DEFAULT_TARGET=true;
+    private static final boolean DEFAULT_TARGET=false;
     private static final int DEFAULT_POPUP_DELAY=300;
     private static final int DEFAULT_MESSAGE_DELAY = 2000;
     private static final int DEFAULT_STRENGTH_DIFFICULTY=2;
@@ -107,6 +112,9 @@ public class GeneralConfig {
     private static final String DEFAULT_DOWNLOADER_RUN_DATE = "1970-01-01";
     private static final String DEFAULT_DUEL_SIDEBAR_LAYOUT = "LOGSTACK,PLAYER2,TURNINFO,PLAYER1";
     private static final boolean DEFAULT_HIDE_AI_ACTION_PROMPT = false;
+    private static final int DEFAULT_ROLLOVER_COLOR = Color.YELLOW.getRGB();
+    private static final int DEFAULT_SOUND_VOLUME = 50;
+    public static final String DEFAULT_TRANSLATION = "";
 
     private int left=DEFAULT_LEFT;
     private int top=DEFAULT_TOP;
@@ -157,6 +165,9 @@ public class GeneralConfig {
     private String imageDownloaderRunDate = DEFAULT_DOWNLOADER_RUN_DATE;
     private String duelSidebarLayout = DEFAULT_DUEL_SIDEBAR_LAYOUT;
     private boolean hideAiActionPrompt = DEFAULT_HIDE_AI_ACTION_PROMPT;
+    private Color rolloverColor = new Color(DEFAULT_ROLLOVER_COLOR);
+    private int uiSoundVolume = DEFAULT_SOUND_VOLUME;
+    private String translation = DEFAULT_TRANSLATION;
 
     private GeneralConfig() { }
 
@@ -579,6 +590,27 @@ public class GeneralConfig {
         hideAiActionPrompt = b;
     }
 
+    public Color getRolloverColor() {
+        return rolloverColor;
+    }
+    public void setRolloverColor(final Color aColor) {
+        rolloverColor = aColor;
+    }
+
+    public int getUiSoundVolume() {
+        return uiSoundVolume;
+    }
+    public void setUiSoundVolume(final int aInt) {
+        uiSoundVolume = aInt;
+    }
+
+    public String getTranslation() {
+        return translation;
+    }
+    public void setTranslation(final String aString) {
+        translation = aString;
+    }
+
     private void load(final Properties properties) {
         left=Integer.parseInt(properties.getProperty(LEFT,""+DEFAULT_LEFT));
         top=Integer.parseInt(properties.getProperty(TOP,""+DEFAULT_TOP));
@@ -626,6 +658,9 @@ public class GeneralConfig {
         imageDownloaderRunDate = properties.getProperty(DOWNLOADER_RUN_DATE, DEFAULT_DOWNLOADER_RUN_DATE);
         duelSidebarLayout = properties.getProperty(DUEL_SIDEBAR_LAYOUT, DEFAULT_DUEL_SIDEBAR_LAYOUT);
         hideAiActionPrompt = Boolean.parseBoolean(properties.getProperty(HIDE_AI_ACTION_PROMPT, "" + DEFAULT_HIDE_AI_ACTION_PROMPT));
+        rolloverColor = new Color(Integer.parseInt(properties.getProperty(ROLLOVER_COLOR, "" + DEFAULT_ROLLOVER_COLOR)));
+        uiSoundVolume = Integer.parseInt(properties.getProperty(UI_SOUND_VOLUME, "" + DEFAULT_SOUND_VOLUME));
+        translation = properties.getProperty(TRANSLATION, DEFAULT_TRANSLATION);
     }
 
     public void load() {
@@ -677,6 +712,9 @@ public class GeneralConfig {
         properties.setProperty(DOWNLOADER_RUN_DATE, imageDownloaderRunDate);
         properties.setProperty(DUEL_SIDEBAR_LAYOUT, duelSidebarLayout);
         properties.setProperty(HIDE_AI_ACTION_PROMPT, String.valueOf(hideAiActionPrompt));
+        properties.setProperty(ROLLOVER_COLOR, String.valueOf(rolloverColor.getRGB()));
+        properties.setProperty(UI_SOUND_VOLUME, String.valueOf(uiSoundVolume));
+        properties.setProperty(TRANSLATION, translation);
     }
 
     public void save() {
@@ -695,6 +733,10 @@ public class GeneralConfig {
 
     public static GeneralConfig getInstance() {
         return INSTANCE;
+    }
+
+    public boolean isCustomCardImagesPath() {
+        return cardImagesPath.isEmpty() == false;
     }
 
 }

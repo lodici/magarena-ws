@@ -1,5 +1,7 @@
 package magic.ui;
 
+import magic.translate.UiString;
+import magic.translate.StringContext;
 import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.KeyEventDispatcher;
@@ -12,6 +14,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
@@ -48,7 +51,6 @@ import magic.model.choice.MagicPlayChoiceResult;
 import magic.model.event.MagicEvent;
 import magic.model.event.MagicEventAction;
 import magic.model.event.MagicPriorityEvent;
-import magic.model.phase.MagicMainPhase;
 import magic.model.phase.MagicPhaseType;
 import magic.model.target.MagicTarget;
 import magic.model.target.MagicTargetNone;
@@ -71,16 +73,25 @@ import magic.utility.MagicSystem;
 
 public class SwingGameController implements IUIGameController, ILogBookListener {
 
+    // translatable strings
+    private static final String _S1 = "conceded";
+    private static final String _S2 = "lost";
+    @StringContext(eg = "Player1 conceded/lost the game.")
+    private static final String _S3 = "%s %s the game.";
+    private static final String _S4 = "You may pay the buyback %s.";
+    @StringContext(eg = "get single kicker count choice")
+    private static final String _S5 = "You may pay the %s %s.";
+    private static final String _S6 = "You may take a mulligan.";
+
     private static final GeneralConfig CONFIG = GeneralConfig.getInstance();
 
     private final DuelPanel gamePanel;
     private final MagicGame game;
-    private final boolean selfMode = MagicSystem.isAiVersusAi();
     private final AtomicBoolean running = new AtomicBoolean(false);
     private final AtomicBoolean isPaused =  new AtomicBoolean(false);
     private final AtomicBoolean gameConceded = new AtomicBoolean(false);
     private final Collection<ChoiceViewer> choiceViewers = new ArrayList<>();
-    private Set<?> validChoices;
+    private Set<?> validChoices = Collections.emptySet();
     private AnnotatedCardPanel cardPopup;
     private UserActionPanel userActionPanel;
     private boolean actionClicked;
@@ -166,7 +177,6 @@ public class SwingGameController implements IUIGameController, ILogBookListener 
         }
     }
 
-
     private static void invokeAndWait(final Runnable task) {
         try { //invoke and wait
             SwingUtilities.invokeAndWait(task);
@@ -175,9 +185,20 @@ public class SwingGameController implements IUIGameController, ILogBookListener 
         }
     }
 
+    private void waitForUIUpdates() {
+        invokeAndWait(new Runnable() {
+            @Override
+            public void run() {
+                //do nothing, ensure that event dispatch queue is cleared
+            }
+        });
+    }
+
     /** Returns true when undo was clicked. */
     private boolean waitForInputOrUndo() {
         try {
+            waitForUIUpdates();
+            input.clear();
             return input.take();
         } catch (final InterruptedException ex) {
             throw new RuntimeException(ex);
@@ -189,6 +210,29 @@ public class SwingGameController implements IUIGameController, ILogBookListener 
         final boolean undoClicked = waitForInputOrUndo();
         if (undoClicked) {
             throw new UndoClickedException();
+        }
+    }
+    
+    private <E extends JComponent> E waitForInput(final Callable<E> func) throws UndoClickedException {
+        final AtomicReference<E> ref = new AtomicReference<>();
+        final AtomicReference<Exception> except = new AtomicReference<>();
+        SwingUtilities.invokeLater(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    final E content = func.call();
+                    ref.set(content);
+                    userActionPanel.setContentPanel(content);
+                } catch (Exception ex) {
+                    except.set(ex);
+                }
+            }
+        });
+        waitForInput();
+        if (except.get() != null) {
+            throw new RuntimeException(except.get());
+        } else {
+            return ref.get();
         }
     }
 
@@ -203,7 +247,7 @@ public class SwingGameController implements IUIGameController, ILogBookListener 
     public void passKeyPressed() {
         if (gamePanel.canClickAction()) {
             actionClicked();
-            game.skipTurnTill(MagicPhaseType.Cleanup);
+            game.skipTurnTill(MagicPhaseType.EndOfTurn);
         }
     }
 
@@ -232,7 +276,7 @@ public class SwingGameController implements IUIGameController, ILogBookListener 
         if (game.hasUndoPoints()) {
             actionClicked = false;
             choiceClicked = MagicTargetNone.getInstance();
-            setSourceCardDefinition(MagicEvent.NO_SOURCE);
+            setSourceCardDefinition(MagicSource.NONE);
             clearValidChoices();
             resume(true);
         }
@@ -273,11 +317,7 @@ public class SwingGameController implements IUIGameController, ILogBookListener 
      * @param cardRect : screen position & size of selected card on battlefield.
      * @param popupAboveBelowOnly : if true then the popup will restrict its height to always fit above/below the selected card.
      */
-    public void viewCardPopup(
-            final MagicObject cardObject,
-            final int index,
-            final Rectangle cardRect,
-            final boolean popupAboveBelowOnly) {
+    public void viewCardPopup(final MagicObject cardObject, final int index, final Rectangle cardRect, final boolean popupAboveBelowOnly) {
 
         // mouse wheel rotation event can fire more than once
         // so ignore all but the first event.
@@ -442,14 +482,10 @@ public class SwingGameController implements IUIGameController, ILogBookListener 
     }
 
     private void showValidChoices() {
-        SwingUtilities.invokeLater(new Runnable() {
-            @Override
-            public void run() {
-                for (final ChoiceViewer choiceViewer : choiceViewers) {
-                    choiceViewer.showValidChoices(validChoices);
-                }
-            }
-        });
+        assert SwingUtilities.isEventDispatchThread();
+        for (final ChoiceViewer choiceViewer : choiceViewers) {
+            choiceViewer.showValidChoices(validChoices);
+        }
     }
 
     public boolean isCombatChoice() {
@@ -458,17 +494,37 @@ public class SwingGameController implements IUIGameController, ILogBookListener 
 
     @Override
     public void clearValidChoices() {
-        validChoices=Collections.emptySet();
-        combatChoice=false;
-        showValidChoices();
-        showMessage(MagicEvent.NO_SOURCE, "");
+        // called from both edt and application threads.
+        SwingUtilities.invokeLater(new Runnable() {
+            @Override
+            public void run() {
+                clearDisplayedValidChoices();
+            }
+        });
+        showMessage(MagicSource.NONE, "");
+    }
+    
+    private void clearDisplayedValidChoices() {
+        assert SwingUtilities.isEventDispatchThread();
+        if (!validChoices.isEmpty()) {
+            validChoices.clear();
+            combatChoice=false;
+            showValidChoices();
+        }
     }
 
     @Override
-    public void setValidChoices(final Set<?> aValidChoices,final boolean aCombatChoice) {
-        this.validChoices=aValidChoices;
-        this.combatChoice=aCombatChoice;
-        showValidChoices();
+    public void setValidChoices(final Set<?> aValidChoices, final boolean aCombatChoice) {
+        assert !SwingUtilities.isEventDispatchThread();
+        SwingUtilities.invokeLater(new Runnable() {
+            @Override
+            public void run() {
+                clearDisplayedValidChoices();
+                validChoices = new HashSet<>(aValidChoices);
+                combatChoice = aCombatChoice;
+                showValidChoices();
+            }
+        });
     }
 
     public Set<?> getValidChoices() {
@@ -514,7 +570,7 @@ public class SwingGameController implements IUIGameController, ILogBookListener 
         if (source == null) {
             throw new RuntimeException("source is null");
         }
-        if (source == MagicEvent.NO_SOURCE) {
+        if (source == MagicSource.NONE) {
             return message;
         } else {
             return "("+source+")|"+message;
@@ -531,65 +587,36 @@ public class SwingGameController implements IUIGameController, ILogBookListener 
         });
     }
 
-    private <E extends JComponent> E waitForInput(final Callable<E> func) throws UndoClickedException {
-        final AtomicReference<E> ref = new AtomicReference<>();
-        final AtomicReference<Exception> except = new AtomicReference<>();
-        invokeAndWait(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    final E content = func.call();
-                    ref.set(content);
-                    userActionPanel.setContentPanel(content);
-                } catch (Exception ex) {
-                    except.set(ex);
-                }
-            }
-        });
-        waitForInput();
-        if (except.get() != null) {
-            throw new RuntimeException(except.get());
-        } else {
-            return ref.get();
-        }
-    }
-
     private Object[] getArtificialNextEventChoiceResults(final MagicEvent event) {
         disableActionButton(true);
         if (CONFIG.getHideAiActionPrompt()) {
-            showMessage(MagicEvent.NO_SOURCE, "");
+            showMessage(MagicSource.NONE, "");
         } else {
             showMessage(event.getSource(),event.getChoiceDescription());
         }
-        SwingGameController.invokeAndWait(new Runnable() {
-            @Override
-            public void run() {
-                //do nothing, ensure that event dispatch queue is cleared
-            }
-        });
+        waitForUIUpdates();
 
         //dynamically get the AI based on the player's index
         final MagicPlayer player = event.getPlayer();
-        final MagicAI ai = game.getDuel().getAIs()[player.getIndex()];
+        final MagicAI ai = player.getAiProfile().getAiType().getAI();
         return ai.findNextEventChoiceResults(game, player);
     }
 
     private Object[] getPlayerNextEventChoiceResults(final MagicEvent event) throws UndoClickedException {
-        final MagicSource source=event.getSource();
-        setSourceCardDefinition(source);
+        setSourceCardDefinition(event.getSource());
         final Object[] choiceResults;
         try {
-            choiceResults = event.getChoice().getPlayerChoiceResults(this,game,event.getPlayer(),source);
+            choiceResults = event.getChoice().getPlayerChoiceResults(this,game,event);
         } finally {
             clearValidChoices();
-            setSourceCardDefinition(MagicEvent.NO_SOURCE);
+            setSourceCardDefinition(MagicSource.NONE);
         }
         return choiceResults;
     }
 
     private void executeNextEventWithChoices(final MagicEvent event) {
         final Object[] choiceResults;
-        if (selfMode || event.getPlayer().getPlayerDefinition().isArtificial()) {
+        if (event.getPlayer().isArtificial()) {
             choiceResults = getArtificialNextEventChoiceResults(event);
         } else {
             try {
@@ -670,7 +697,7 @@ public class SwingGameController implements IUIGameController, ILogBookListener 
         showEndGameMessage();
         playEndGameSoundEffect();
         enableForwardButton();
-        if (!selfMode && waitForInputOrUndo()) {
+        if (MagicSystem.isAiVersusAi() == false && waitForInputOrUndo()) {
             performUndo();
             updateGameView();
         } else {
@@ -694,11 +721,11 @@ public class SwingGameController implements IUIGameController, ILogBookListener 
      * playing a new card from their library.
      */
     private void setAnimationEvent(final MagicEvent event) {
-        if (event.getPlayer().getPlayerDefinition().isArtificial() || MagicSystem.isAiVersusAi()) {
+        if (event.getPlayer().isArtificial() || MagicSystem.isAiVersusAi()) {
             final MagicEventAction action = event.getMagicEventAction();
             // action appears to be an instance of an anonymous inner class so "instanceof" does not work.
             // (see http://stackoverflow.com/questions/17048900/reflection-class-forname-finds-classes-classname1-and-classname2-what-a)
-            final boolean isValidAction = action.getClass().getName().startsWith("magic.model.event.MagicCardActivation");
+            final boolean isValidAction = action.getClass().getName().startsWith("magic.model.event.MagicHandCastActivation");
             if (event.isValid() && isValidAction) {
                 gamePanel.setAnimationEvent(event);
             }
@@ -735,11 +762,11 @@ public class SwingGameController implements IUIGameController, ILogBookListener 
                 }
             });
         }
-        showMessage(MagicEvent.NO_SOURCE,
-                "{L} " +
-                game.getLosingPlayer() + " " +
-                (gameConceded.get() ? "conceded" : "lost" ) +
-                " the game.");
+        showMessage(MagicSource.NONE,
+                String.format("{L} %s", 
+                        UiString.get(_S3,
+                                game.getLosingPlayer(),
+                                gameConceded.get() ? UiString.get(_S1) : UiString.get(_S2))));
     }
 
     private void playEndGameSoundEffect() {
@@ -772,6 +799,9 @@ public class SwingGameController implements IUIGameController, ILogBookListener 
         }
     }
 
+    /**
+     * devMode only currently.
+     */
     public void doSaveGame() {
         if (isValidSaveState()) {
             final File saveGameFile = MagicFileChoosers.getSaveGameFile(gamePanel);
@@ -789,16 +819,8 @@ public class SwingGameController implements IUIGameController, ILogBookListener 
         final boolean isHumanTurn = game.getTurnPlayer().isHuman();
         final boolean isHumanPriority = game.getPriorityPlayer().isHuman();
         final boolean isStackEmpty = game.getStack().isEmpty();
-        return isHumanTurn && isHumanPriority && isFirstMainPhase() && isStackEmpty;
-    }
-
-    private boolean isFirstMainPhase() {
-        if (game.getPhase() instanceof MagicMainPhase) {
-            final MagicMainPhase phase = (MagicMainPhase)game.getPhase();
-            return phase == MagicMainPhase.getFirstInstance();
-        } else {
-            return false;
-        }
+        final boolean isFirstMain = game.isPhase(MagicPhaseType.FirstMain); 
+        return isHumanTurn && isHumanPriority && isFirstMain && isStackEmpty;
     }
 
     public void setGamePaused(final boolean isPaused) {
@@ -822,9 +844,9 @@ public class SwingGameController implements IUIGameController, ILogBookListener 
             @Override
             public MayChoicePanel call() {
                 return new MayChoicePanel(
-                        SwingGameController.this,
-                        source,
-                        "You may pay the buyback " + costText + '.'
+                    SwingGameController.this,
+                    source,
+                    UiString.get(_S4, costText)
                 );
             }
         });
@@ -843,11 +865,7 @@ public class SwingGameController implements IUIGameController, ILogBookListener 
     }
 
     @Override
-    public int getMultiKickerCountChoice(
-            final MagicSource source,
-            final MagicManaCost cost,
-            final int maximumCount,
-            final String name) throws UndoClickedException {
+    public int getMultiKickerCountChoice(final MagicSource source, final MagicManaCost cost, final int maximumCount, final String name) throws UndoClickedException {
         final MultiKickerChoicePanel kickerPanel = waitForInput(new Callable<MultiKickerChoicePanel>() {
             @Override
             public MultiKickerChoicePanel call() {
@@ -858,14 +876,14 @@ public class SwingGameController implements IUIGameController, ILogBookListener 
     }
 
     @Override
-    public int getSingleKickerCountChoice(
-            final MagicSource source,
-            final MagicManaCost cost,
-            final String name) throws UndoClickedException {
+    public int getSingleKickerCountChoice(final MagicSource source, final MagicManaCost cost, final String name) throws UndoClickedException {
         final MayChoicePanel kickerPanel = waitForInput(new Callable<MayChoicePanel>() {
             @Override
             public MayChoicePanel call() {
-                return new MayChoicePanel(SwingGameController.this, source, "You may pay the " + name + ' ' + cost.getText() + '.');
+                return new MayChoicePanel(
+                        SwingGameController.this,
+                        source,
+                        UiString.get(_S5, name, cost.getText()));
             }
         });
         return kickerPanel.isYesClicked() ? 1 : 0;
@@ -883,9 +901,7 @@ public class SwingGameController implements IUIGameController, ILogBookListener 
     }
 
     @Override
-    public boolean getTakeMulliganChoice(
-            final MagicSource source,
-            final MagicPlayer player) throws UndoClickedException {
+    public boolean getTakeMulliganChoice(final MagicSource source, final MagicPlayer player) throws UndoClickedException {
         final MayChoicePanel choicePanel = waitForInput(new Callable<MayChoicePanel>() {
             @Override
             public MayChoicePanel call() {
@@ -894,9 +910,9 @@ public class SwingGameController implements IUIGameController, ILogBookListener 
                         (player.getHandSize() == DuelConfig.getInstance().getHandSize() &&
                          GeneralConfig.getInstance().showMulliganScreen());
                 if (showMulliganScreen) {
-                    return new MulliganChoicePanel(SwingGameController.this, source, "You may take a mulligan.", player.getPrivateHand());
+                    return new MulliganChoicePanel(SwingGameController.this, source, UiString.get(_S6), player.getPrivateHand());
                 } else {
-                    return new MayChoicePanel(SwingGameController.this, source, "You may take a mulligan.");
+                    return new MayChoicePanel(SwingGameController.this, source, UiString.get(_S6));
                 }
             }
         });

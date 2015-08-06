@@ -2,7 +2,7 @@ package magic.ui.duel.viewer;
 
 import java.awt.Color;
 import java.awt.Container;
-import java.awt.Cursor;
+import java.awt.Dimension;
 import java.awt.event.ActionEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
@@ -12,20 +12,30 @@ import javax.swing.JLabel;
 import javax.swing.JMenuItem;
 import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
-import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import magic.data.MagicIcon;
 import magic.model.MagicGame;
 import magic.ui.IconImages;
-import magic.ui.MagicStyle;
+import magic.translate.StringContext;
+import magic.ui.utility.MagicStyle;
 import magic.ui.SwingGameController;
+import magic.translate.UiString;
 import magic.ui.screen.interfaces.IOptionsMenu;
+import magic.ui.screen.widget.ActionBarButton;
 import magic.ui.theme.Theme;
 import magic.utility.MagicSystem;
 import net.miginfocom.swing.MigLayout;
 
 @SuppressWarnings("serial")
 public class TurnTitlePanel extends JPanel {
+
+    // translatable strings
+    private static final String _S1 = "Options Menu [ESC]";
+    private static final String _S2 = "Displays menu of common and screen specific options.";
+    private static final String _S3 = "First player to %d wins the duel.";
+    @StringContext(eg = "as in 'Game 2 of 3'")
+    private static final String _S4 = "Game %d / %d";
+    private static final String _S5 = "Turn %d"; 
 
     private final MigLayout miglayout = new MigLayout();
     private final JLabel scoreLabel = new JLabel();
@@ -49,25 +59,28 @@ public class TurnTitlePanel extends JPanel {
 
     private void refreshLayout() {
         miglayout.setLayoutConstraints("insets 0 3 0 4, gap 0 2, flowy, wrap 2");
-        miglayout.setColumnConstraints("[fill]push[30!]");
+        miglayout.setColumnConstraints("[fill]push[]");
         removeAll();
         add(scoreLabel);
         add(gameLabel);
-        add(getOptionsIconButton(), "h 30!, spany 2, aligny bottom");
+        add(getOptionsIconButton(), "spany 2, aligny bottom");
     }
 
     private JButton getOptionsIconButton() {
-        JButton btn = new JButton(IconImages.getIcon(MagicIcon.OPTIONS_ICON));
-        btn.setHorizontalAlignment(SwingConstants.RIGHT);
-        btn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        btn.setToolTipText("Options [ESC]");
-        setButtonTransparent(btn);
-        btn.addActionListener(new AbstractAction() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                showOptionsMenu();
-            }
-        });
+
+        final JButton btn = new ActionBarButton(
+                IconImages.getIcon(MagicIcon.OPTIONS_ICON),
+                UiString.get(_S1),
+                UiString.get(_S2),
+                new AbstractAction() {
+                    @Override
+                    public void actionPerformed(final ActionEvent e) {
+                        showOptionsMenu();
+                    }
+                }
+        );
+        btn.setMaximumSize(new Dimension(30, 30));
+
         if (MagicSystem.isDevMode()) {
             btn.addMouseListener(new MouseAdapter() {
                 @Override
@@ -98,13 +111,12 @@ public class TurnTitlePanel extends JPanel {
 
     public void refresh(final MagicGame game) {
         scoreLabel.setText(getScoreString());
-        scoreLabel.setToolTipText(String.format("First player to %d wins the duel.",
+        scoreLabel.setToolTipText(UiString.get(_S3,
                 game.getDuel().getConfiguration().getGamesRequiredToWinDuel())
         );
-        gameLabel.setText(String.format("Game %d / %d  •  Turn %d  •  %s",
-                game.getDuel().getGameNr(),
-                game.getDuel().getGamesTotal(),
-                game.getTurn(),
+        gameLabel.setText(String.format("%s  •  %s  •  %s",
+                UiString.get(_S4, game.getDuel().getGameNr(), game.getDuel().getGamesTotal()),
+                UiString.get(_S5, game.getTurn()),
                 game.getTurnPlayer().getName())
         );
     }

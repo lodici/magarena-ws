@@ -2,6 +2,11 @@ package magic.data;
 
 public enum MagicIcon {
 
+    ILLEGAL_ICON("card_illegal.png"),
+    LEGAL_ICON("card_legal.png"),
+    BANNED_ICON("card_banned.png"),
+    RESTRICTED_ICON("card_restricted.png"),
+
     HEADER_ICON("headerIcon.png"),
     OPTIONS_ICON("w_book.png"),
     OPTIONBAR_ICON("w_book24.png"),
@@ -31,14 +36,14 @@ public enum MagicIcon {
     ARROWUP_ICON("w_arrowup.png"),
     PLUS_ICON("w_plus28.png"),
     MINUS_ICON("w_minus28.png"),
-    
+
     MISSING_ICON("missing2.png"),
     ARENA("arena.png"),
     ANY("any.png"),
     FOLDER("folder.png"),
     LOG("log.png"),
-    OK("ok.gif"),
-    CANCEL("cancel.gif"),
+    OK(LEGAL_ICON.iconFilename),
+    CANCEL(BANNED_ICON.iconFilename),
     FORWARD("forward.png"),
     FORWARD2("forward2.png"),
     START("start.png"),
@@ -94,9 +99,8 @@ public enum MagicIcon {
     TARGET("target.gif"),
     VALID("valid.gif"),
     STRENGTH("strength.png"),
-    DELAY("delay.png"),
     PICTURE("picture.png"),
-    
+
     // ability icons
     FLYING("flying.png"),
     TRAMPLE("trample.png"),
@@ -124,6 +128,17 @@ public enum MagicIcon {
     // counters
     PLUS("plus.png"),
     MINUS("minus.png"),
+    PLUSTWO("plusTwo.png"),
+    MINUSTWO("minusTwo.png"),
+    PLUSZEROPLUSONE("plusZeroPlusOne.png"),
+    MINUSZEROMINUSONE("minusZeroMinusOne.png"),
+    PLUSZEROPLUSTWO("plusZeroPlusTwo.png"),
+    MINUSZEROMINUSTWO("minusZeroMinusTwo.png"),
+    PLUSONEPLUSZERO("plusOnePlusZero.png"),
+    MINUSONEMINUSZERO("minusOneMinusZero.png"),
+    PLUSONEPLUSTWO("plusOnePlusTwo.png"),
+    PLUSTWOPLUSZERO("plusTwoPlusZero.png"),
+    MINUSTWOMINUSONE("minusTwoMinusOne.png"),
     CHARGE("charge.png"),
     FEATHER("feather.gif"),
     GOLDCOUNTER("goldcounter.png"),
@@ -155,7 +170,18 @@ public enum MagicIcon {
     PRESSURECOUNTER("pressure-counter.png"),
     VERSECOUNTER("verse-counter.png"),
     MUSICCOUNTER("verse-counter.png"),
-    
+    RUSTCOUNTER("rust-counter.png"),
+    BLOODCOUNTER("blood-counter.png"),
+    GROWTHCOUNTER("spore-counter.png"),
+    PLAGUECOUNTER("spore-counter.png"),
+    PINCOUNTER("pin-counter.png"),
+    HEALINGCOUNTER("healing-counter.png"),
+    SCREAMCOUNTER("scream-counter.png"),
+    DEVOTIONCOUNTER("devotion-counter.png"),
+    DIVINITYCOUNTER("divinity-counter.png"),
+    DEATHCOUNTER("death-counter.png"),
+    WINDCOUNTER("wind-counter.png"),
+
     MANA_ANY("anymana.gif"),
 
     // mana icons are stored in a sprite/icon sheet.
@@ -165,6 +191,7 @@ public enum MagicIcon {
     MANA_BLACK(26),
     MANA_RED(27),
     MANA_GREEN(28),
+    MANA_SNOW(29),
     MANA_HYBRID_WHITE(40),
     MANA_HYBRID_BLUE(41),
     MANA_HYBRID_BLACK(42),
@@ -202,6 +229,10 @@ public enum MagicIcon {
     MANA_14(14),
     MANA_15(15),
     MANA_16(16),
+    MANA_17(17),
+    MANA_18(18),
+    MANA_19(19),
+    MANA_20(20),
     MANA_X(21);
 
     public static final String MANA_ICON_SHEET = "Mana.png";
